@@ -559,7 +559,7 @@ class Stagehand:
             )
             self.logger.debug("Set up CDP download behavior")
         except Exception as e:
-            self.logger.warning(f"Failed to set up CDP download behavior: {str(e)}")
+            self.logger.error(f"Failed to set up CDP download behavior: {str(e)}")
 
         self._initialized = True
 
@@ -614,7 +614,7 @@ class Stagehand:
                         f"Error ending server session {self.session_id}: {str(e)}"
                     )
             elif self.session_id:
-                self.logger.warning(
+                self.logger.error(
                     "Cannot end server session: HTTP client not available."
                 )
 
