@@ -222,6 +222,51 @@ async def build_hierarchical_tree(
         "idToUrl": id_to_url,
     }
 
+async def get_accessibility_node_name(page: "StagehandPage", node: AccessibilityNode) -> str:
+    """Gets the name of an accessibility node."""
+    name = node.get("name")
+    if name and name.get("value"):
+        return name
+
+    nodeId = node.get("nodeId")
+    if not nodeId:
+        return None
+
+    nodeId = int(nodeId)
+
+    args = {"backendNodeId": nodeId}
+    response = await page.send_cdp("DOM.resolveNode", args)
+    object_id = response.get("object", {}).get("objectId")
+
+    xpath = await get_xpath_by_resolved_object_id(page._cdp_client, object_id)
+    if not xpath:
+        return None
+
+    locator = page.locator(f"xpath={xpath}")
+    if not locator:
+        return None
+
+    name_value = await locator.get_attribute("name")
+    if name_value:
+        return {"value": name_value, "type": "string"}
+
+    aria_label_value = await locator.get_attribute("aria-label")
+    if aria_label_value:
+        return {"value": aria_label_value, "type": "string"}
+
+    id_value = await locator.get_attribute("id")
+    if id_value:
+        return {"value": id_value, "type": "string"}
+
+    placeholder_value = await locator.get_attribute("placeholder")
+    if placeholder_value:
+        return {"value": placeholder_value, "type": "string"}
+
+    title_value = await locator.get_attribute("title")
+    if title_value:
+        return {"value": title_value, "type": "string"}
+
+    return None
 
 async def get_accessibility_tree(
     page: "StagehandPage",
@@ -253,6 +298,27 @@ async def get_accessibility_tree(
                         "type": "string",
                         "value": new_role,
                     }  # Create role if missing
+
+        # Process accessibility node names in parallel after the main loop
+        async def get_node_name_with_timeout(node_data):
+            try:
+                if "ignored" in node_data and not node_data["ignored"]:
+                    node_name = await asyncio.wait_for(get_accessibility_node_name(page, node_data), timeout=0.5)
+                    if node_name and ("name" not in node_data or (not node_data["name"].get("value"))):
+                        node_data["name"] = node_name
+            except asyncio.TimeoutError:
+                logger.debug(
+                    message=f"Timeout getting accessibility node name for node {node_data.get('nodeId')}",
+                    auxiliary={"error": {"value": "Timeout after 0.5 seconds", "type": "string"}},
+                )
+            except Exception as e:
+                logger.debug(
+                    message=f"Error getting accessibility node name for node {node_data.get('nodeId')}",
+                    auxiliary={"error": {"value": str(e), "type": "string"}},
+                )
+
+        # Run all node name retrievals in parallel
+        await asyncio.gather(*[get_node_name_with_timeout(node_data) for node_data in nodes], return_exceptions=True)
 
         hierarchical_tree = await build_hierarchical_tree(nodes, page, logger)
 
