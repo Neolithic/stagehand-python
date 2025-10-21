@@ -109,8 +109,28 @@ class ObserveHandler:
                 }
             )
 
-        # Generate selectors for all elements
+        additional_observe_options = options.additional_observe_options
+        additional_elements = []
+        elements_new = []
+        if additional_observe_options:
+            additional_methods = additional_observe_options.get("additional_methods", [])
+            for element in elements:
+                if element.get("method") in additional_methods:
+                    additional_observe_result = element.copy()
+                    if "selector" not in additional_observe_result:
+                        additional_observe_result["selector"] = ""
+                    if "description" not in additional_observe_result:
+                        additional_observe_result["description"] = \
+                            "applying " + element.get("method") + " method"
+                    additional_elements.append(ObserveResult(**additional_observe_result))
+                else:
+                    elements_new.append(element)
+
+            elements = elements_new
+
         elements_with_selectors = await self._add_selectors_to_elements(elements)
+
+        elements_with_selectors.extend(additional_elements)
 
         self.logger.debug(
             "Found elements", auxiliary={"elements": elements_with_selectors}
