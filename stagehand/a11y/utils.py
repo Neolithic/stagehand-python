@@ -280,6 +280,28 @@ async def get_accessibility_tree(
         nodes: list[AXNode] = cdp_result.get("nodes", [])
         processing_start_time = time.time()
 
+        #filter out nodes that link to current url
+        try:
+            current_url = page.url
+            filtered_nodes = []
+            for node_data in nodes:
+                if 'role' in node_data \
+                    and isinstance(node_data['role'], dict) \
+                    and 'value' in node_data['role'] and node_data['role']['value'] == 'link':
+                    link_url = _extract_url_from_ax_node(node_data)
+                    #remove bookmarks
+                    link_url = link_url.split('#')[0]
+                    if link_url and link_url != current_url:
+                        filtered_nodes.append(node_data)
+                else:
+                    filtered_nodes.append(node_data)
+            nodes = filtered_nodes
+        except Exception as e:    #pylint: disable=broad-exception-caught
+            logger.debug(
+                message="Error filtering out nodes that link to current url",
+                auxiliary={"error": {"value": str(e), "type": "string"}},
+            )
+
         for node_data in nodes:
             backend_id = node_data.get("backendDOMNodeId")
             role_value_obj = node_data.get("role")
