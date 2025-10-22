@@ -289,8 +289,7 @@ async def get_accessibility_tree(
                     and isinstance(node_data['role'], dict) \
                     and 'value' in node_data['role'] and node_data['role']['value'] == 'link':
                     link_url = _extract_url_from_ax_node(node_data)
-                    #remove bookmarks
-                    link_url = link_url.split('#')[0]
+
                     if link_url and link_url != current_url:
                         filtered_nodes.append(node_data)
                 else:
